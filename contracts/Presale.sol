@@ -16,28 +16,20 @@ contract Presale is Context, Ownable  {
 
     using SafeERC20 for IERC20;
 
-    // uint256 public price;
-    // uint256 public amountPerUnits;
 
-    // uint256 public mintLimit;
-    // uint256 public minted;
+    address immutable public _token;
+    address payable immutable _TEAM_ADDRESS;
+    address payable immutable _TREASURY_ADDRESS;
+    address payable immutable _LIQUIDITY_ADDRESS;
 
-    // bool public started;
-    // address public launcher;
-
-    
     bool public _presaleActive;
-    address public _token;
-    
     mapping(address => uint256) private _presaleContributions;
     mapping(address => VestingWallet) private _presaleWallets;
     uint _totalContributions;
     uint _finalPresalerTokens;
     uint _finalLiquidityTokens;
     uint _finalLiquidityFunding;
-    
     uint64 private _startTimestamp;
-    
     
     uint64 constant _PRESALE_VESTING_PERIOD = 1 hours;
     uint constant _TOTAL_SUPPLY = 1e9 * 1e18; // 1 MILLION TOKENS
@@ -50,10 +42,7 @@ contract Presale is Context, Ownable  {
     address constant _uniswapRouter = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
     address constant _uniswapFactory = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
 
-    address payable immutable _TEAM_ADDRESS;
-    address payable immutable _TREASURY_ADDRESS;
-    address payable immutable _LIQUIDITY_ADDRESS; 
-
+    
     constructor(address token, address payable TEAM_ADDRESS, address payable TREASURY_ADDRESS, address payable LIQUIDITY_ADDRESS) Ownable(msg.sender) {
       _TEAM_ADDRESS = TEAM_ADDRESS;
       _TREASURY_ADDRESS = TREASURY_ADDRESS;
@@ -98,6 +87,7 @@ contract Presale is Context, Ownable  {
       // however, they shouldn't be an issue, as the remainders will just end up going into liquidity. 
       console.log("Presale ending");
       console.log("Funding balance", _totalContributions, address(this).balance);
+
       uint presalers_tokens = (tokens * _PRESALERS_PCT) / 100;
       uint treasury_tokens = (tokens * _TREASURY_PCT) / 100;
       uint team_tokens = (tokens * _TEAM_PCT) / 100;
@@ -181,7 +171,7 @@ contract Presale is Context, Ownable  {
 
       console.log("Contribution was, (fund, pct_bps)", contribution_as_funds, contribution_as_pct / 1e14);
       
-      // Create wallet for user and send the tokens.
+      // Create vesting wallet for user and send the tokens.
       VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
       _presaleWallets[_msgSender()] = userWallet;
       ERC20(_token).transfer(_msgSender(), tokens);
@@ -190,13 +180,9 @@ contract Presale is Context, Ownable  {
       console.log("Remaining token balance", IERC20(_token).balanceOf(address(this)));
     }
 
-    // copied from https://solidity-by-example.org/sending-ether/ 
-    // call *forwards* gas, which can be important if you are sending 
-    // to a contract with a receive() method. not really relevant
-    // for this case, but can cause catosrophic bugs 
-    // (never able to complete the callers method because 
-    //  a targets receive() method only gets 2300 gas to run and throws 
-    //  because it cant run within that gas.)
+    // copied from https://solidity-by-example.org/sending-ether/ as the current recommened way. It
+    // does have some caveats to avoid reentrancy bugs/exploits if we are ever sending ETH to a user controled
+    // address. (we are not in this case)
     function sendViaCall(address payable _to, uint _amt) internal {
         // Call returns a boolean value indicating success or failure.
         // This is the current recommended method to use.
