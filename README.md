@@ -13,9 +13,14 @@ Leave that running and in another window run
 
 Contract logs will be output in from the forked mainnet runniner. 
 
+You can also deploy to the local running forked mainnet with: 
+
+`npx hardhat ignition deploy ignition/modules/PresaleAndToken.ts --network localhost`
+
+This will create deployment record in `ignition/deployment/...` which will need to be wiped you want to redploy a new version (`npx hardhat ignition wipe`)
+
 https://hardhat.org/docs
 https://viem.sh/docs/
-
 
 
 # Boilerplate Readme
