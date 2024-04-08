@@ -1,13 +1,15 @@
 
 # Actual Readme 
 
-This was created from `npx hardhat create`. With the 'viem' options The Lock.sol contract and tests for that contract are just left in for reference. 
+This was created from `npx hardhat create`. With the 'viem' options. 
 
-To run tests, you need something resembling base mainnet, since they interact with uniswap. You can fork the base mainnet to run as a local node with: 
+The Lock.sol contract and tests for that contract are just left in for reference. 
+
+To run tests, you need forked (base) network running locally. (tests interact with uniswap). 
 
 `npx hardhat node --fork https://base-mainnet.g.alchemy.com/v2/SGZbcGBiY4qLKbFGk5Xh8uZxbwU2FnED --fork-block-number 12893667`
 
-Leave that running and in another window run 
+In another window: 
 
 `npx hardhat test --network localhost`. 
 
@@ -19,8 +21,11 @@ You can also deploy to the local running forked mainnet with:
 
 This will create deployment record in `ignition/deployment/...` which will need to be wiped you want to redploy a new version (`npx hardhat ignition wipe`)
 
-https://hardhat.org/docs
-https://viem.sh/docs/
+
+### Tooling docs
+
+- https://hardhat.org/docs
+- https://viem.sh/docs/
 
 
 # Boilerplate Readme
