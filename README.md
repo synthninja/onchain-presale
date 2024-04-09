@@ -9,6 +9,8 @@ To run tests, you need forked (base) network running locally. (tests interact wi
 
 `npx hardhat node --fork https://base-mainnet.g.alchemy.com/v2/SGZbcGBiY4qLKbFGk5Xh8uZxbwU2FnED --fork-block-number 12893667`
 
+NOTE: You may need to update the blocknumber to a more recent block from https://basescan.org 
+
 In another window: 
 
 `npx hardhat test --network localhost`. 
@@ -19,7 +21,7 @@ You can also deploy to the local running forked mainnet with:
 
 `npx hardhat ignition deploy ignition/modules/PresaleAndToken.ts --network localhost`
 
-This will create deployment record in `ignition/deployment/...` which will need to be wiped you want to redploy a new version (`npx hardhat ignition wipe`)
+This will create deployment record in `ignition/deployment/...` which will need to be wiped you want to redploy a new version (`npx hardhat ignition wipe` or rm -rf the relevant folder in `ignition/deployments`)
 
 
 ### Tooling docs
