@@ -1,4 +1,4 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox-viem";
 
 const config: HardhatUserConfig = {
@@ -15,3 +15,11 @@ const config: HardhatUserConfig = {
 };
 
 export default config;
+
+task('closePresale', 'Closes the presale')
+  .addPositionalParam('contract')
+  .setAction(
+    async ({ contract }, hre) => {    
+      const Presale = await hre.viem.getContractAt('Presale', contract);
+      await Presale.write.manualFinishPresale();
+  });
