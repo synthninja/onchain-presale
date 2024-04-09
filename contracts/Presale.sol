@@ -16,7 +16,6 @@ contract Presale is Context, Ownable  {
 
     using SafeERC20 for IERC20;
 
-
     address immutable public _token;
     address payable immutable _TEAM_ADDRESS;
     address payable immutable _TREASURY_ADDRESS;
@@ -26,11 +25,15 @@ contract Presale is Context, Ownable  {
     mapping(address => uint256) private _presaleContributions;
     mapping(address => VestingWallet) private _presaleWallets;
     uint _totalContributions;
-    uint _finalPresalerTokens;
-    uint _finalLiquidityTokens;
-    uint _finalLiquidityFunding;
+    
     uint64 private _startTimestamp;
     
+    // These are calculated in constructor.
+    uint immutable _finalPresalerTokens;
+    uint immutable _finalLiquidityTokens;
+    uint immutable _finalTeamTokens;
+    uint immutable _finalTreasuryTokens;
+
     uint64 constant _PRESALE_VESTING_PERIOD = 1 hours;
     uint constant _TOTAL_SUPPLY = 1e9 * 1e18; // 1 MILLION TOKENS
     uint constant _LIQUIDITY_PCT = 40;
@@ -50,6 +53,11 @@ contract Presale is Context, Ownable  {
       _token = token;
       // start immediately.
       _presaleActive = true;
+      // calc the things. 
+      _finalPresalerTokens = (_TOTAL_SUPPLY * _PRESALERS_PCT / 100);
+      _finalTreasuryTokens = (_TOTAL_SUPPLY * _TREASURY_PCT) / 100;
+      _finalTeamTokens = (_TOTAL_SUPPLY * _TEAM_PCT) / 100;
+      _finalLiquidityTokens = _TOTAL_SUPPLY - _finalPresalerTokens - _finalTeamTokens - _finalTreasuryTokens;
     }
     
     receive() external payable {
@@ -60,7 +68,35 @@ contract Presale is Context, Ownable  {
     }
 
     function contributionOf(address account) public view returns (uint256) {
-        return _presaleContributions[account];
+      return _presaleContributions[account];
+    }
+
+    // Returns the percent of the supply the contributions will get, as value from 0-1e18 representing 
+    // 0-100%. 
+    // The reason for using the very high multipler is to keep rounding errors to a minimum.
+    // When using it to calc the value, we just divide by 1e18, instead of 100 (1e3).
+    function contributionOfAsPct(address account) public view returns (uint256) {
+      return ((_presaleContributions[account] * 1e18) / _totalContributions);
+    }
+
+    // Returns the amount of tokens the user will receive.
+    // This is based of the _CURRENT_ value of _totalContributions
+    function contributionOfAsTokens(address account) public view returns (uint256) {
+      return contributionOfAsPct(account) * _finalPresalerTokens / 1e18;
+    }
+
+    // Returns the amount of liquidity currently on course to 
+    // add, which can be used to find the price. 
+    function currentLiquidityFunding() public view returns (uint256) {
+      uint treasury_contributions = (_totalContributions * _TREASURY_PCT) / 100;
+      uint team_contributions = (_totalContributions * _TEAM_PCT) / 100;
+      uint liquidity_contributions = _totalContributions - team_contributions - treasury_contributions;
+      return liquidity_contributions;
+    }
+    
+    // Ratio we will add to the liquidity at, can be used to calc listing price.
+    function currentLiquidityRatio() public view returns (uint256, uint256) {
+      return (currentLiquidityFunding(), _finalLiquidityTokens);
     }
 
     function walletOf(address account) public view returns (VestingWallet) {
@@ -79,27 +115,14 @@ contract Presale is Context, Ownable  {
       require(_presaleActive);
       _presaleActive = false;
 
-      uint constributions = _totalContributions;
-      uint tokens = _TOTAL_SUPPLY;
-
-
       // rounding errors can slip in here, depending on the values used for *_PCT and _TOTAL_SUPPLY. 
       // however, they shouldn't be an issue, as the remainders will just end up going into liquidity. 
       console.log("Presale ending");
       console.log("Funding balance", _totalContributions, address(this).balance);
-
-      uint presalers_tokens = (tokens * _PRESALERS_PCT) / 100;
-      uint treasury_tokens = (tokens * _TREASURY_PCT) / 100;
-      uint team_tokens = (tokens * _TEAM_PCT) / 100;
-      uint treasury_contributions = (constributions * _TREASURY_PCT) / 100;
-      uint team_contributions = (constributions * _TEAM_PCT) / 100;
       
-      uint liquidity_tokens = tokens - presalers_tokens - team_tokens - treasury_tokens;
-      uint liquidity_contributions = constributions - team_contributions - treasury_contributions;
-
-      _finalPresalerTokens = presalers_tokens;
-      _finalLiquidityTokens = liquidity_tokens;
-      _finalLiquidityFunding = liquidity_contributions;
+      uint treasury_contributions = (_totalContributions * _TREASURY_PCT) / 100;
+      uint team_contributions = (_totalContributions * _TEAM_PCT) / 100;
+      uint liquidity_contributions = _totalContributions - team_contributions - treasury_contributions;
 
       _startTimestamp = uint64(block.timestamp);
       
@@ -110,10 +133,10 @@ contract Presale is Context, Ownable  {
       console.log("Sent to treasury", treasury_contributions, _TREASURY_ADDRESS);
       console.log("Funding balance remaining (prev, now)", _totalContributions, address(this).balance, liquidity_contributions);
       
-      MyToken(_token).mint(_TEAM_ADDRESS, team_tokens);
-      MyToken(_token).mint(_TREASURY_ADDRESS, treasury_tokens);
-      MyToken(_token).mint(address(this), presalers_tokens);
-      MyToken(_token).mint(address(this), liquidity_tokens);
+      MyToken(_token).mint(_TEAM_ADDRESS, _finalTeamTokens);
+      MyToken(_token).mint(_TREASURY_ADDRESS, _finalTreasuryTokens);
+      MyToken(_token).mint(address(this), _finalPresalerTokens);
+      MyToken(_token).mint(address(this), _finalLiquidityTokens);
       
       console.log("Tokens balance:", IERC20(_token).balanceOf(address(this)));
       
@@ -134,11 +157,10 @@ contract Presale is Context, Ownable  {
       IERC20 token = ERC20(_token);
       
       token.approve(_uniswapRouter, type(uint256).max);
-      
+      uint _finalLiquidityFunding = currentLiquidityFunding();
       console.log("Final add of liquidity stage, funding amount:", _finalLiquidityFunding, address(this).balance);
       console.log("Final add of liquidity stage, token amount:", _finalLiquidityTokens);
       
-      _finalLiquidityFunding = address(this).balance; /// SHOULD ALWAYS MATCH EXACTLY. 
       // add liquidity
       (uint256 tokenAmount, uint256 ethAmount, uint256 liquidity) = 
       router.addLiquidityETH{value: _finalLiquidityFunding} (
@@ -154,22 +176,14 @@ contract Presale is Context, Ownable  {
 
     function claimPresalerTokens() public {
       require(!_presaleActive, "Cannot claim now");
-      uint contribution_as_funds = _presaleContributions[_msgSender()]; 
-      // must have made some contribution.
-      require(contribution_as_funds > 0, "Nothing to claim");
-
-      // zero out balance 
-      _presaleContributions[_msgSender()] = 0;
+      require(_presaleContributions[_msgSender()] > 0, "Nothing to claim");
       
-      // calc pct of tokens the user should get. 
-      // we use a huge multiplier to minizime rounding errors, but there still will be 
-      // very tiny rounding errors. since the rounding is always floored, this will just
-      // mean people get a miniscule fraction less (0.0000000000000001 etc) and contract
-      // will end up with a miniscule amount of tokens left over. 
-      uint contribution_as_pct = (contribution_as_funds * 1e18) / _totalContributions;
-      uint tokens = (_finalPresalerTokens * contribution_as_pct) / 1e18;
+      uint tokens = contributionOfAsTokens(_msgSender());
 
-      console.log("Contribution was, (fund, pct_bps)", contribution_as_funds, contribution_as_pct / 1e14);
+      console.log("Contribution was, (fund, pct_bps)", _presaleContributions[_msgSender()], contributionOfAsPct(_msgSender()));
+      
+      // zero out balance so they cant claim again. 
+      _presaleContributions[_msgSender()] = 0;
       
       // Create vesting wallet for user and send the tokens.
       VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
