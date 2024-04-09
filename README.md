@@ -26,8 +26,8 @@ This will create deployment record in `ignition/deployment/...` which will need 
 
 ### Tooling docs
 
-- https://hardhat.org/docs
-- https://viem.sh/docs/
+- https://hardhat.org/docs - tooling for managing contract compilation, testing, deployment, tasks
+- https://viem.sh/ - javascript/typescript client library. 
 
 
 # Boilerplate Readme
