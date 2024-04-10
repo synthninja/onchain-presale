@@ -35,7 +35,7 @@ contract Presale is Context, Ownable  {
     uint immutable _finalTreasuryTokens;
 
     uint64 constant _PRESALE_VESTING_PERIOD = 1 hours;
-    uint constant _TOTAL_SUPPLY = 1e9 * 1e18; // 1 MILLION TOKENS
+    uint constant _TOTAL_SUPPLY = 1e6 * 1e18; // 1 MILLION TOKENS
     uint constant _LIQUIDITY_PCT = 40;
     uint constant _PRESALERS_PCT = 50;
     uint constant _TEAM_PCT = 5;
@@ -97,6 +97,11 @@ contract Presale is Context, Ownable  {
     // Ratio we will add to the liquidity at, can be used to calc listing price.
     function currentLiquidityRatio() public view returns (uint256, uint256) {
       return (currentLiquidityFunding(), _finalLiquidityTokens);
+    }
+
+    // Ratio presalers are getting tokens at, can be used to calc presale price.
+    function currentPresaleRatio() public view returns (uint256, uint256) {
+      return (_totalContributions, _finalPresalerTokens);
     }
 
     function walletOf(address account) public view returns (VestingWallet) {
