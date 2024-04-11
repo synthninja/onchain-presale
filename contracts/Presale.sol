@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/finance/VestingWallet.sol";
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import './Token.sol';
 
@@ -20,8 +19,8 @@ contract Presale is Context, Ownable  {
     address payable immutable _LIQUIDITY_ADDRESS;
 
     bool public _presaleActive;
+    mapping(address => uint256) public claimed;
     mapping(address => uint256) private _presaleContributions;
-    mapping(address => VestingWallet) private _presaleWallets;
     uint public _totalContributions;
     
     uint64 private _startTimestamp;
@@ -74,21 +73,37 @@ contract Presale is Context, Ownable  {
     function claimPresalerTokens() external {
         require(!_presaleActive, "Cannot claim now");
         require(_presaleContributions[_msgSender()] > 0, "Nothing to claim");
+        require(claimed[_msgSender()] < contributionOfAsTokens(_msgSender()), "already claimed all tokens");
         
-        uint tokens = contributionOfAsTokens(_msgSender());
+        console.log("total contribution is, (fund, pct_bps)", _presaleContributions[_msgSender()], contributionOfAsPct(_msgSender()));
+        
+        uint tokensToSend;
+        uint totalReleasable; 
+        
+        if (block.timestamp >= _startTimestamp + _PRESALE_VESTING_PERIOD) {
+            totalReleasable = contributionOfAsTokens(_msgSender());
+        } else {
+            totalReleasable = (contributionOfAsTokens(_msgSender()) * (block.timestamp - _startTimestamp)) / _PRESALE_VESTING_PERIOD;
+        }
+        console.log("total releasable: ", totalReleasable);
+        console.log("tokens claimed already", claimed[_msgSender()]);
 
-        console.log("Contribution was, (fund, pct_bps)", _presaleContributions[_msgSender()], contributionOfAsPct(_msgSender()));
-        
-        // zero out balance so they cant claim again. 
-        _presaleContributions[_msgSender()] = 0;
-        
-        // Create vesting wallet for user and send the tokens.
-        VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
-        _presaleWallets[_msgSender()] = userWallet;
-        ERC20(_token).transfer(address(userWallet), tokens);
+        tokensToSend = totalReleasable - claimed[_msgSender()];
+        claimed[_msgSender()] += tokensToSend;
 
-        console.log("Sent to wallet:", tokens, address(userWallet));
+        ERC20(_token).transfer(_msgSender(), tokensToSend);
+        console.log("Sent to wallet:", tokensToSend, _msgSender());
         console.log("Remaining token balance", IERC20(_token).balanceOf(address(this)));
+    }
+
+    function refund() external {
+        require(_presaleActive, "cannot refund because presale is over");
+        require(_presaleContributions[msg.sender] > 0, "user hasn't contributed during presale");
+
+        uint refunded = _presaleContributions[msg.sender];
+        _presaleContributions[msg.sender] = 0;  
+        _totalContributions -= refunded;
+        sendViaCall(payable(_msgSender()), refunded);
     }
 
     function manualFinishPresale() external onlyOwner {
