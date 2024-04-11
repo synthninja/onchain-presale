@@ -24,7 +24,7 @@ contract Presale is Context, Ownable  {
     bool public _presaleActive;
     mapping(address => uint256) private _presaleContributions;
     mapping(address => VestingWallet) private _presaleWallets;
-    uint _totalContributions;
+    uint public _totalContributions;
     
     uint64 private _startTimestamp;
     
