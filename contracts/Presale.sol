@@ -5,9 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/finance/VestingWallet.sol";
+import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import './Token.sol';
 
 import "hardhat/console.sol";
@@ -40,17 +39,14 @@ contract Presale is Context, Ownable  {
     uint constant _TEAM_PCT = 5;
     uint constant _TREASURY_PCT = 5;
 
-    // uni v2 on base addresses.
-    address internal _uniswapRouter; //0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-    address internal _uniswapFactory; //0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
+    address internal _uniswapRouter; //0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;  // uni v2 on base addresses.
 
     constructor(
         address token, 
         address payable teamAddress, 
         address payable treasuryAddress, 
         address payable liquidityAddress,
-        address uniswapRouter,
-        address uniswapFactory
+        address uniswapRouter
     ) 
         Ownable(msg.sender) 
     {
@@ -59,7 +55,6 @@ contract Presale is Context, Ownable  {
         _TREASURY_ADDRESS = treasuryAddress;
         _LIQUIDITY_ADDRESS = liquidityAddress;
         _uniswapRouter = uniswapRouter;
-        _uniswapFactory = uniswapFactory;
         // start immediately.
         _presaleActive = true;
         // calc the things. 
@@ -76,8 +71,45 @@ contract Presale is Context, Ownable  {
         console.log("Contributed", msg.sender, msg.value);
     }
 
+    function claimPresalerTokens() external {
+        require(!_presaleActive, "Cannot claim now");
+        require(_presaleContributions[_msgSender()] > 0, "Nothing to claim");
+        
+        uint tokens = contributionOfAsTokens(_msgSender());
+
+        console.log("Contribution was, (fund, pct_bps)", _presaleContributions[_msgSender()], contributionOfAsPct(_msgSender()));
+        
+        // zero out balance so they cant claim again. 
+        _presaleContributions[_msgSender()] = 0;
+        
+        // Create vesting wallet for user and send the tokens.
+        VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
+        _presaleWallets[_msgSender()] = userWallet;
+        ERC20(_token).transfer(address(userWallet), tokens);
+
+        console.log("Sent to wallet:", tokens, address(userWallet));
+        console.log("Remaining token balance", IERC20(_token).balanceOf(address(this)));
+    }
+
+    function manualFinishPresale() external onlyOwner {
+        distributeLiquidity();
+    }
+
     function contributionOf(address account) external view returns (uint256) {
         return _presaleContributions[account];
+    }
+
+    // Ratio we will add to the liquidity at, can be used to calc listing price.
+    function currentLiquidityRatio() external view returns (uint256, uint256) {
+        return (currentLiquidityFunding(), _finalLiquidityTokens);
+    }
+
+    function walletOf(address account) external view returns (VestingWallet) {
+        return _presaleWallets[account];
+    }
+
+    function totalContributions() external view returns (uint256) {
+        return _totalContributions;
     }
 
     // Returns the percent of the supply the contributions will get, as value from 0-1e18 representing 
@@ -102,27 +134,10 @@ contract Presale is Context, Ownable  {
         uint liquidity_contributions = _totalContributions - team_contributions - treasury_contributions;
         return liquidity_contributions;
     }
-    
-    // Ratio we will add to the liquidity at, can be used to calc listing price.
-    function currentLiquidityRatio() external view returns (uint256, uint256) {
-        return (currentLiquidityFunding(), _finalLiquidityTokens);
-    }
 
     // Ratio presalers are getting tokens at, can be used to calc presale price.
     function currentPresaleRatio() public view returns (uint256, uint256) {
         return (_totalContributions, _finalPresalerTokens);
-    }
-
-    function walletOf(address account) external view returns (VestingWallet) {
-        return _presaleWallets[account];
-    }
-
-    function totalContributions() external view returns (uint256) {
-        return _totalContributions;
-    }
-
-    function manualFinishPresale() external onlyOwner {
-        distributeLiquidity();
     }
 
     function distributeLiquidity() internal {
@@ -157,15 +172,7 @@ contract Presale is Context, Ownable  {
         addLiquidityToUni();
     }
 
-    function addLiquidityToUni() internal {
-        address _weth = IUniswapV2Router02(_uniswapRouter).WETH();
-        address _pair = IUniswapV2Factory(_uniswapFactory).getPair(address(this), _weth);
-
-        if (_pair == address(0)) {
-            _pair = IUniswapV2Factory(_uniswapFactory).createPair(address(this), _weth);
-        }
-        _pair = IUniswapV2Factory(_uniswapFactory).getPair(address(this), _weth);
-            
+    function addLiquidityToUni() internal {    
         // add liquidity
         IUniswapV2Router02 router = IUniswapV2Router02(_uniswapRouter);
         IERC20 token = ERC20(_token);
@@ -186,26 +193,6 @@ contract Presale is Context, Ownable  {
             block.timestamp + 1 days // deadline
         );
         console.log("Added liquidity", tokenAmount, ethAmount, liquidity);
-    }
-
-    function claimPresalerTokens() external {
-        require(!_presaleActive, "Cannot claim now");
-        require(_presaleContributions[_msgSender()] > 0, "Nothing to claim");
-        
-        uint tokens = contributionOfAsTokens(_msgSender());
-
-        console.log("Contribution was, (fund, pct_bps)", _presaleContributions[_msgSender()], contributionOfAsPct(_msgSender()));
-        
-        // zero out balance so they cant claim again. 
-        _presaleContributions[_msgSender()] = 0;
-        
-        // Create vesting wallet for user and send the tokens.
-        VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
-        _presaleWallets[_msgSender()] = userWallet;
-        ERC20(_token).transfer(address(userWallet), tokens);
-
-        console.log("Sent to wallet:", tokens, address(userWallet));
-        console.log("Remaining token balance", IERC20(_token).balanceOf(address(this)));
     }
 
     // copied from https://solidity-by-example.org/sending-ether/ as the current recommened way. It
