@@ -84,11 +84,21 @@ contract Presale is Context, Ownable  {
         
         // Create vesting wallet for user and send the tokens.
         VestingWallet userWallet = new VestingWallet(_msgSender(), _startTimestamp, _PRESALE_VESTING_PERIOD); 
-        _presaleWallets[_msgSender()] = userWallet;
+        _presaleWallets[_msgSender()] = userWallet; 
         ERC20(_token).transfer(address(userWallet), tokens);
 
         console.log("Sent to wallet:", tokens, address(userWallet));
         console.log("Remaining token balance", IERC20(_token).balanceOf(address(this)));
+    }
+
+    function refund() external {
+        require(_presaleActive, "cannot refund because presale is over");
+        require(_presaleContributions[msg.sender] > 0, "user hasn't contributed during presale");
+
+        uint refunded = _presaleContributions[msg.sender];
+        _presaleContributions[msg.sender] = 0;  
+        _totalContributions -= refunded;
+        sendViaCall(payable(_msgSender()), refunded);
     }
 
     function manualFinishPresale() external onlyOwner {
