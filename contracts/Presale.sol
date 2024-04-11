@@ -76,7 +76,7 @@ contract Presale is Context, Ownable  {
         console.log("Contributed", msg.sender, msg.value);
     }
 
-    function contributionOf(address account) public view returns (uint256) {
+    function contributionOf(address account) external view returns (uint256) {
         return _presaleContributions[account];
     }
 
@@ -104,7 +104,7 @@ contract Presale is Context, Ownable  {
     }
     
     // Ratio we will add to the liquidity at, can be used to calc listing price.
-    function currentLiquidityRatio() public view returns (uint256, uint256) {
+    function currentLiquidityRatio() external view returns (uint256, uint256) {
         return (currentLiquidityFunding(), _finalLiquidityTokens);
     }
 
@@ -113,15 +113,15 @@ contract Presale is Context, Ownable  {
         return (_totalContributions, _finalPresalerTokens);
     }
 
-    function walletOf(address account) public view returns (VestingWallet) {
+    function walletOf(address account) external view returns (VestingWallet) {
         return _presaleWallets[account];
     }
 
-    function totalContributions() public view returns (uint256) {
+    function totalContributions() external view returns (uint256) {
         return _totalContributions;
     }
 
-    function manualFinishPresale() public onlyOwner {
+    function manualFinishPresale() external onlyOwner {
         distributeLiquidity();
     }
 
@@ -188,7 +188,7 @@ contract Presale is Context, Ownable  {
         console.log("Added liquidity", tokenAmount, ethAmount, liquidity);
     }
 
-    function claimPresalerTokens() public {
+    function claimPresalerTokens() external {
         require(!_presaleActive, "Cannot claim now");
         require(_presaleContributions[_msgSender()] > 0, "Nothing to claim");
         
